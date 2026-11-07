@@ -228,6 +228,12 @@ export interface PermissionView {
   name: string;
 }
 
+export interface RoleRequest {
+  code: string;
+  name: string;
+  description?: string;
+}
+
 export interface BranchView {
   id: number;
   tenantId: number;
@@ -371,6 +377,18 @@ export const platformApi = {
   permissions: () => apiClient.get<PermissionView[]>('/superadmin/permissions').then((r) => r.data),
   updateRolePermissions: (id: number, permissionIds: number[]) =>
     apiClient.put<RoleView>(`/superadmin/roles/${id}/permissions`, { permissionIds }).then((r) => r.data),
+  createRole: (payload: RoleRequest) =>
+    apiClient.post<RoleView>('/superadmin/roles', payload).then((r) => r.data),
+  updateRole: (id: number, payload: RoleRequest) =>
+    apiClient.put<RoleView>(`/superadmin/roles/${id}`, payload).then((r) => r.data),
+  deleteRole: (id: number) => apiClient.delete(`/superadmin/roles/${id}`),
+  usersInRole: (id: number) =>
+    apiClient.get<UserView[]>(`/superadmin/roles/${id}/users`).then((r) => r.data),
+  assignUserRole: (userId: number, roleCode: string) =>
+    apiClient.post<RoleView>(`/superadmin/users/${userId}/roles/${encodeURIComponent(roleCode)}`)
+      .then((r) => r.data),
+  removeUserRole: (userId: number, roleCode: string) =>
+    apiClient.delete(`/superadmin/users/${userId}/roles/${encodeURIComponent(roleCode)}`),
 
   branches: (query: Record<string, unknown> = {}) =>
     apiClient.get<Paged<BranchView>>('/superadmin/branches', { params: pageQuery(query) }).then((r) => r.data),
