@@ -1,0 +1,169 @@
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  Chip,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material';
+import { Check, X } from 'lucide-react';
+import { ConfirmDialog, EmptyState, ErrorState, LoadingState, PageHeader } from '@resto/ui';
+import type { TenantSummary } from '@resto/types';
+import { tenantApi } from '@/api';
+import { StatusBadge } from '@/components/StatusBadge';
+import { useToast } from '@/components/toast';
+
+export function OnboardingPage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [target, setTarget] = useState<{ tenant: TenantSummary; action: 'verify' | 'reject' } | null>(
+    null,
+  );
+
+  const tenants = useQuery({
+    queryKey: ['tenants', 'all'],
+    queryFn: () => tenantApi.list({ page: 0, size: 500, sort: 'createdAt', direction: 'desc' }),
+  });
+
+  const pending = useMemo(
+    () => (tenants.data?.content ?? []).filter((tenant) => tenant.status === 'PENDING_VERIFICATION'),
+    [tenants.data],
+  );
+
+  const act = useMutation({
+    mutationFn: async ({ id, action }: { id: number; action: 'verify' | 'reject' }) => {
+      if (action === 'verify') await tenantApi.verify(id);
+      else await tenantApi.reject(id);
+    },
+    onSuccess: (_data, variables) => {
+      toast(
+        variables.action === 'verify'
+          ? 'Restaurant verified — owner account activated'
+          : 'Restaurant rejected — tenant suspended',
+      );
+      setTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ['tenants'] });
+    },
+    onError: (error: Error) => toast(error.message, 'error'),
+  });
+
+  return (
+    <>
+      <PageHeader
+        title="Onboarding Requests"
+        subtitle="Restaurants waiting for verification. Verify activates the owner account; reject suspends the tenant."
+        actions={
+          <Chip
+            color={pending.length > 0 ? 'warning' : 'success'}
+            label={`${pending.length} pending`}
+          />
+        }
+      />
+
+      <Alert severity="info" variant="outlined" sx={{ mb: 2.5 }}>
+        The backend list endpoint has no status filter, so pending restaurants are filtered
+        client-side from the first 500 tenants. GET /api/v1/superadmin/tenants?status= would make
+        this exact at scale.
+      </Alert>
+
+      <Card>
+        {tenants.isPending ? <LoadingState /> : null}
+        {tenants.isError ? (
+          <ErrorState message={tenants.error.message} onRetry={() => void tenants.refetch()} />
+        ) : null}
+        {tenants.data && pending.length === 0 ? (
+          <EmptyState
+            title="All caught up"
+            description="No restaurants are waiting for verification right now."
+          />
+        ) : null}
+        {pending.length > 0 ? (
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Restaurant</TableCell>
+                <TableCell>Contact</TableCell>
+                <TableCell>Slug</TableCell>
+                <TableCell>Submitted</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {pending.map((tenant) => (
+                <TableRow key={tenant.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={600}>
+                      {tenant.name}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{tenant.contactEmail ?? '—'}</TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace', fontSize: 12.5 }}>
+                    /{tenant.slug}
+                  </TableCell>
+                  <TableCell>{new Date(tenant.createdAt).toLocaleString()}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={tenant.status} />
+                  </TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        startIcon={<X size={14} />}
+                        onClick={() => setTarget({ tenant, action: 'reject' })}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<Check size={14} />}
+                        onClick={() => setTarget({ tenant, action: 'verify' })}
+                      >
+                        Verify
+                      </Button>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : null}
+      </Card>
+
+      <ConfirmDialog
+        open={target !== null}
+        title={target?.action === 'verify' ? 'Verify restaurant?' : 'Reject restaurant?'}
+        description={
+          target?.action === 'verify'
+            ? `Verify "${target?.tenant.name}"? This activates the owner account and lets the restaurant sign in.`
+            : `Reject "${target?.tenant.name}"? The tenant will be suspended and the owner cannot sign in.`
+        }
+        confirmLabel={target?.action === 'verify' ? 'Verify' : 'Reject'}
+        destructive={target?.action === 'reject'}
+        loading={act.isPending}
+        onCancel={() => setTarget(null)}
+        onConfirm={() => {
+          if (target) act.mutate({ id: target.tenant.id, action: target.action });
+        }}
+      />
+
+      <Box sx={{ mt: 2.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          Note: the backend reject flow does not store a rejection reason (POST /reject takes no
+          body) — captured reasons would require an API change.
+        </Typography>
+      </Box>
+    </>
+  );
+}

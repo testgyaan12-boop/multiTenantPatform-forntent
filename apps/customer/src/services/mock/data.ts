@@ -1,0 +1,277 @@
+import type {
+  ItemDetail,
+  OrderSummary,
+  RestaurantInfo,
+} from '@/types';
+
+export function svgImage(background: string, accent: string, emoji: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${background}"/><stop offset="100%" stop-color="${accent}"/></linearGradient></defs><rect width="800" height="600" fill="url(#g)"/><circle cx="400" cy="300" r="170" fill="rgba(255,255,255,0.16)"/><text x="400" y="368" font-size="220" text-anchor="middle">${emoji}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+export const MOCK_RESTAURANT: RestaurantInfo = {
+  slug: 'the-spice-house',
+  name: 'The Spice House',
+  description: 'North Indian comfort food, tandoor classics and slow-cooked curries.',
+  currency: 'INR',
+  taxRate: 0.05,
+  serviceChargeRate: 0,
+};
+
+const spiceLevel: ItemDetail['modifierGroups'][number] = {
+  id: 9001,
+  name: 'Spice level',
+  selectionType: 'SINGLE',
+  isRequired: true,
+  minSelections: 1,
+  maxSelections: 1,
+  modifiers: [
+    { id: 9101, name: 'Mild', priceDelta: 0 },
+    { id: 9102, name: 'Medium', priceDelta: 0 },
+    { id: 9103, name: 'Hot', priceDelta: 0 },
+  ],
+};
+
+const biryaniAddons: ItemDetail['modifierGroups'][number] = {
+  id: 9002,
+  name: 'Add-ons',
+  selectionType: 'MULTI',
+  isRequired: false,
+  minSelections: 0,
+  maxSelections: 3,
+  modifiers: [
+    { id: 9111, name: 'Raita', priceDelta: 30 },
+    { id: 9112, name: 'Extra Gravy', priceDelta: 40 },
+    { id: 9113, name: 'Boiled Egg', priceDelta: 20 },
+  ],
+};
+
+const noodleAddons: ItemDetail['modifierGroups'][number] = {
+  id: 9003,
+  name: 'Add-ons',
+  selectionType: 'MULTI',
+  isRequired: false,
+  minSelections: 0,
+  maxSelections: 3,
+  modifiers: [
+    { id: 9121, name: 'Chilli Sauce', priceDelta: 0 },
+    { id: 9122, name: 'Extra Veggies', priceDelta: 30 },
+  ],
+};
+
+export const MOCK_ITEMS: ItemDetail[] = [
+  {
+    id: 1,
+    categoryId: 10,
+    name: 'Paneer Tikka',
+    description: 'Char-grilled cottage cheese in a smoky masala marinade.',
+    price: 249,
+    imageUrl: svgImage('#8a4f2d', '#c97b3f', '🧀'),
+    isAvailable: true,
+    isFeatured: true,
+    isVegetarian: true,
+    prepTimeMinutes: 18,
+    calories: 320,
+    variants: [],
+    modifierGroups: [spiceLevel],
+  },
+  {
+    id: 2,
+    categoryId: 20,
+    name: 'Chicken Biryani',
+    description: 'Slow-cooked basmati rice with saffron, mint and tender chicken.',
+    price: 299,
+    imageUrl: svgImage('#9c6b1f', '#d9a441', '🍛'),
+    isAvailable: true,
+    isFeatured: true,
+    isVegetarian: false,
+    prepTimeMinutes: 25,
+    calories: 640,
+    variants: [
+      { id: 21, name: 'Regular', priceDelta: 0, isDefault: true },
+      { id: 22, name: 'Family', priceDelta: 250, isDefault: false },
+    ],
+    modifierGroups: [biryaniAddons],
+  },
+  {
+    id: 3,
+    categoryId: 20,
+    name: 'Veg Hakka Noodles',
+    description: 'Wok-tossed noodles with crunchy vegetables and soy-garlic sauce.',
+    price: 199,
+    imageUrl: svgImage('#3f6b4f', '#7fae6b', '🍜'),
+    isAvailable: true,
+    isFeatured: false,
+    isVegetarian: true,
+    prepTimeMinutes: 15,
+    calories: 420,
+    variants: [
+      { id: 31, name: 'Half', priceDelta: 0, isDefault: true },
+      { id: 32, name: 'Full', priceDelta: 80, isDefault: false },
+    ],
+    modifierGroups: [noodleAddons],
+  },
+  {
+    id: 4,
+    categoryId: 30,
+    name: 'Butter Naan',
+    description: 'Tandoor-baked flatbread brushed with melted butter.',
+    price: 49,
+    imageUrl: svgImage('#a97c3f', '#e0b879', '🫓'),
+    isAvailable: true,
+    isFeatured: false,
+    isVegetarian: true,
+    prepTimeMinutes: 8,
+    calories: 260,
+    variants: [],
+    modifierGroups: [],
+  },
+  {
+    id: 5,
+    categoryId: 40,
+    name: 'Gulab Jamun',
+    description: 'Warm milk dumplings soaked in cardamom-rose syrup.',
+    price: 89,
+    imageUrl: svgImage('#7a3f52', '#c96f8a', '🍮'),
+    isAvailable: true,
+    isFeatured: false,
+    isVegetarian: true,
+    prepTimeMinutes: 5,
+    calories: 300,
+    variants: [],
+    modifierGroups: [],
+  },
+  {
+    id: 6,
+    categoryId: 50,
+    name: 'Masala Chai',
+    description: 'Assam tea simmered with ginger, cardamom and milk.',
+    price: 59,
+    imageUrl: svgImage('#5f4a33', '#a98a5f', '🍵'),
+    isAvailable: false,
+    isFeatured: false,
+    isVegetarian: true,
+    prepTimeMinutes: 6,
+    calories: 120,
+    variants: [],
+    modifierGroups: [],
+  },
+];
+
+export const MOCK_CATEGORIES = [
+  { id: 10, name: 'Starters', description: 'To begin with' },
+  { id: 20, name: 'Mains', description: 'From the kitchen' },
+  { id: 30, name: 'Breads', description: 'From the tandoor' },
+  { id: 40, name: 'Desserts', description: 'Something sweet' },
+  { id: 50, name: 'Drinks', description: 'Chai and more' },
+];
+
+function minutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString();
+}
+
+export const MOCK_ORDERS: OrderSummary[] = [
+  {
+    id: 8003,
+    orderNumber: 'SH-241016-1174',
+    publicToken: 'mock-token-older',
+    status: 'COMPLETED',
+    paymentStatus: 'PAID',
+    source: 'PICKUP',
+    currency: 'INR',
+    subtotal: 498,
+    taxTotal: 24.9,
+    serviceCharge: 0,
+    tipTotal: 0,
+    grandTotal: 522.9,
+    customerName: 'Aarav',
+    placedAt: minutesAgo(60 * 24 * 4),
+    createdAt: minutesAgo(60 * 24 * 4),
+    items: [
+      {
+        id: 90031,
+        name: 'Paneer Tikka',
+        quantity: 2,
+        unitPrice: 249,
+        lineTotal: 498,
+        status: 'PLACED',
+        modifiers: [{ name: 'Medium', priceDelta: 0 }],
+      },
+    ],
+  },
+  {
+    id: 8002,
+    orderNumber: 'SH-241018-2950',
+    publicToken: 'mock-token-cancelled',
+    status: 'CANCELLED',
+    paymentStatus: 'REFUNDED',
+    source: 'QR',
+    tableNumber: '4',
+    currency: 'INR',
+    subtotal: 348,
+    taxTotal: 17.4,
+    serviceCharge: 0,
+    tipTotal: 0,
+    grandTotal: 365.4,
+    customerName: 'Aarav',
+    placedAt: minutesAgo(60 * 26),
+    createdAt: minutesAgo(60 * 26),
+    items: [
+      {
+        id: 90021,
+        name: 'Chicken Biryani',
+        quantity: 1,
+        unitPrice: 299,
+        lineTotal: 299,
+        status: 'CANCELLED',
+        modifiers: [{ name: 'Raita', priceDelta: 30 }],
+      },
+      {
+        id: 90022,
+        name: 'Butter Naan',
+        quantity: 1,
+        unitPrice: 49,
+        lineTotal: 49,
+        status: 'CANCELLED',
+        modifiers: [],
+      },
+    ],
+  },
+  {
+    id: 8001,
+    orderNumber: 'SH-241019-3821',
+    publicToken: 'mock-token-latest',
+    status: 'COMPLETED',
+    paymentStatus: 'PAID',
+    source: 'PICKUP',
+    currency: 'INR',
+    subtotal: 397,
+    taxTotal: 19.85,
+    serviceCharge: 0,
+    tipTotal: 0,
+    grandTotal: 416.85,
+    customerName: 'Aarav',
+    placedAt: minutesAgo(60 * 5),
+    createdAt: minutesAgo(60 * 5),
+    items: [
+      {
+        id: 90011,
+        name: 'Chicken Biryani',
+        quantity: 1,
+        unitPrice: 299,
+        lineTotal: 299,
+        status: 'PLACED',
+        modifiers: [{ name: 'Raita', priceDelta: 30 }],
+      },
+      {
+        id: 90012,
+        name: 'Butter Naan',
+        quantity: 2,
+        unitPrice: 49,
+        lineTotal: 98,
+        status: 'PLACED',
+        modifiers: [],
+      },
+    ],
+  },
+];
