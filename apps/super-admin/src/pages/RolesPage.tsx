@@ -51,7 +51,7 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
-import { EmptyState, ErrorState, LoadingState, PageHeader } from '@resto/ui';
+import { ConfirmDialog, EmptyState, ErrorState, LoadingState, PageHeader } from '@resto/ui';
 import { platformApi, type PermissionView, type RoleView, type UserView } from '@/api';
 import { useToast } from '@/components/toast';
 import KpiCard from '@/components/KpiCard';
@@ -259,13 +259,36 @@ export function RolesPage() {
       setCreatePerms(new Set());
       void queryClient.invalidateQueries({ queryKey: ['sa-roles'] });
     },
-    onError: (error: Error) => {
-      setCreating(false);
-      toast(error.message, 'error');
-    },
-  });
+            onError: (error: Error) => {
+              setCreating(false);
+              toast(error.message, 'error');
+            },
+          });
 
-  const deleteRole = useMutation({
+          const [confirmOpen, setConfirmOpen] = useState(false);
+          const [confirmAction, setConfirmAction] = useState<'delete-role' | 'remove-user' | 'save-permissions' | null>(null);
+          const [confirmTarget, setConfirmTarget] = useState<{
+            id?: number;
+            userId?: number;
+            roleCode?: string;
+            userName?: string;
+            roleName?: string;
+          } | null>(null);
+
+          const handleConfirm = () => {
+            if (confirmAction === 'delete-role' && confirmTarget?.id != null) {
+              deleteRole.mutate(confirmTarget.id);
+            } else if (confirmAction === 'remove-user' && confirmTarget?.userId != null && confirmTarget.roleCode) {
+              removeRole.mutate({ userId: confirmTarget.userId, roleCode: confirmTarget.roleCode });
+            } else if (confirmAction === 'save-permissions') {
+              savePermissions();
+            }
+            setConfirmOpen(false);
+            setConfirmAction(null);
+            setConfirmTarget(null);
+          };
+
+          const deleteRole = useMutation({
     mutationFn: (id: number) => platformApi.deleteRole(id),
     onSuccess: () => {
       toast('Role deleted');
@@ -561,7 +584,11 @@ export function RolesPage() {
                             size="small"
                             variant="text"
                             startIcon={<Trash2 size={14} />}
-                            onClick={() => deleteRole.mutate(role.id)}
+                            onClick={() => {
+                              setConfirmTarget({ id: role.id, roleName: role.name });
+                              setConfirmAction('delete-role');
+                              setConfirmOpen(true);
+                            }}
                             title="Delete role"
                             sx={{ color: '#D32F2F' }}
                           />
@@ -636,12 +663,22 @@ export function RolesPage() {
                 onSelectGroup={selectGroup}
                 onClearAll={clearAll}
                 onReset={resetDefaults}
-                onSave={savePermissions}
+                onSave={() => {
+                  setConfirmAction('save-permissions');
+                  setConfirmOpen(true);
+                }}
                 saving={saveRolePerms.isPending}
-                systemRole={editingRole?.systemRole ?? false}
               />
             ) : (
-              <AssignedUsersList role={editingRole ?? undefined} users={platformApi.usersInRole} removeRole={removeRole.mutate} />
+              <AssignedUsersList
+                role={editingRole ?? undefined}
+                users={platformApi.usersInRole}
+                removeUser={({ userId, roleCode, userName }) => {
+                  setConfirmTarget({ userId, roleCode, userName });
+                  setConfirmAction('remove-user');
+                  setConfirmOpen(true);
+                }}
+              />
             )}
           </Box>
 
@@ -649,15 +686,12 @@ export function RolesPage() {
             <Box sx={{ p: 2, borderTop: '1px solid #E4E9F2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexShrink: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Chip size="small" label={dirty ? 'Unsaved changes' : 'Saved'} color={dirty ? 'warning' : 'default'} />
-                {editingRole?.systemRole && (
-                  <Typography variant="caption" color="text.secondary">System roles cannot be edited</Typography>
-                )}
               </Box>
               <Stack direction="row" spacing={1}>
                 <Button size="small" variant="outlined" onClick={() => setDrawerOpen(false)} disabled={saveRolePerms.isPending}>
                   Cancel
                 </Button>
-                <Button size="small" variant="contained" startIcon={<Save size={16} />} onClick={savePermissions} disabled={saveRolePerms.isPending || !dirty || Boolean(editingRole?.systemRole)}>
+                <Button size="small" variant="contained" startIcon={<Save size={16} />} onClick={() => { setConfirmAction('save-permissions'); setConfirmOpen(true); }} disabled={saveRolePerms.isPending || !dirty}>
                   Save Changes
                 </Button>
               </Stack>
@@ -858,6 +892,36 @@ export function RolesPage() {
           <Button size="small" variant="outlined" onClick={() => setAuditOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+        <ConfirmDialog
+        open={confirmOpen}
+        title={
+          confirmAction === 'delete-role'
+            ? `Soft-delete role "${confirmTarget?.roleName}"?`
+            : confirmAction === 'save-permissions'
+              ? 'Save permission changes?'
+              : `Remove user from role "${confirmTarget?.roleCode}"?`
+        }
+        description={
+          confirmAction === 'delete-role'
+            ? `This will mark "${confirmTarget?.roleName}" as deleted (isDelete). It will no longer be assignable to new users. Existing users keep their role until reassigned.`
+            : confirmAction === 'save-permissions'
+              ? `Saving will apply the permission changes to "${editingRole?.name}" for all users with this role.`
+              : `Remove "${confirmTarget?.userName}" from the role "${confirmTarget?.roleCode}"?`
+        }
+        confirmLabel={
+          confirmAction === 'delete-role'
+            ? 'Soft-delete'
+            : confirmAction === 'save-permissions'
+              ? 'Save Changes'
+              : 'Remove'
+        }
+        cancelLabel="Cancel"
+        destructive={confirmAction === 'delete-role'}
+        loading={deleteRole.isPending || removeRole.isPending || saveRolePerms.isPending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={handleConfirm}
+      />
     </>
   );
 }
@@ -873,7 +937,6 @@ interface PermissionsMatrixProps {
   onReset: () => void;
   onSave: () => void;
   saving: boolean;
-  systemRole: boolean;
 }
 
 function PermissionsMatrix({
@@ -887,23 +950,21 @@ function PermissionsMatrix({
   onReset,
   onSave,
   saving,
-  systemRole,
 }: PermissionsMatrixProps) {
   return (
     <Card sx={{ border: '1px solid #E4E9F2', borderRadius: 2, overflow: 'hidden' }}>
       <CardContent sx={{ p: 2 }}>
         <Alert severity="warning" variant="outlined" sx={{ mb: 2 }}>
-          Changing permissions immediately affects what users with this role can do. System role
-          permissions are protected and cannot be edited.
+          Changing permissions immediately affects what users with this role can do. Save to apply the changes.
         </Alert>
         <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-          <Button size="small" variant="outlined" onClick={onClearAll} disabled={saving || systemRole}>
+          <Button size="small" variant="outlined" onClick={onClearAll} disabled={saving}>
             Clear All
           </Button>
-          <Button size="small" variant="outlined" onClick={onReset} disabled={saving || systemRole || !dirty}>
+          <Button size="small" variant="outlined" onClick={onReset} disabled={saving || !dirty}>
             Reset to Default
           </Button>
-          <Button size="small" variant="contained" startIcon={<Save size={16} />} onClick={onSave} disabled={saving || systemRole || !dirty}>
+          <Button size="small" variant="contained" startIcon={<Save size={16} />} onClick={onSave} disabled={saving || !dirty}>
             Save Changes
           </Button>
         </Box>
@@ -919,7 +980,7 @@ function PermissionsMatrix({
                     <group.icon size={18} strokeWidth={1.5} />
                     <Typography variant="body2" fontWeight={600}>{group.label}</Typography>
                   </Box>
-                  <Checkbox size="small" checked={allSelected} onChange={() => onSelectGroup(group, !allSelected)} disabled={systemRole} />
+                  <Checkbox size="small" checked={allSelected} onChange={() => onSelectGroup(group, !allSelected)} />
                   <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
                     {granted.length} / {groupPerms.length} granted
                   </Typography>
@@ -935,13 +996,12 @@ function PermissionsMatrix({
                       <FormControlLabel
                         key={p.id}
                         control={
-                          <Checkbox
-                            size="small"
-                            checked={checked}
-                            onChange={(e) => onChange(p.id, e.target.checked)}
-                            disabled={systemRole}
-                            sx={{ ml: 0 }}
-                          />
+                            <Checkbox
+                              size="small"
+                              checked={checked}
+                              onChange={(e) => onChange(p.id, e.target.checked)}
+                              sx={{ ml: 0 }}
+                            />
                         }
                         label={
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
@@ -969,10 +1029,10 @@ function PermissionsMatrix({
 interface AssignedUsersListProps {
   role: RoleView | undefined;
   users: (id: number) => Promise<UserView[]>;
-  removeRole: (vars: { userId: number; roleCode: string }) => void;
+  removeUser: (vars: { userId: number; roleCode: string; userName: string }) => void;
 }
 
-function AssignedUsersList({ role, users, removeRole }: AssignedUsersListProps) {
+function AssignedUsersList({ role, users, removeUser }: AssignedUsersListProps) {
   const [userList, setUserList] = useState<UserView[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -1017,7 +1077,7 @@ function AssignedUsersList({ role, users, removeRole }: AssignedUsersListProps) 
                     <TableCell sx={{ fontSize: 12.5, color: '#5A6478' }}>{u.tenantName ?? '-'}</TableCell>
                     <TableCell><Chip size="small" label={u.status} variant="outlined" color="default" /></TableCell>
                     <TableCell align="right">
-                      <Button size="small" variant="text" startIcon={<Trash2 size={14} />} onClick={() => removeRole({ userId: u.id, roleCode: role!.code })} sx={{ color: '#D32F2F' }}>
+                      <Button size="small" variant="text" startIcon={<Trash2 size={14} />} onClick={() => removeUser({ userId: u.id, roleCode: role!.code, userName: u.firstName + ' ' + u.lastName })} sx={{ color: '#D32F2F' }}>
                         Remove
                       </Button>
                     </TableCell>

@@ -101,3 +101,12 @@ export async function uploadRestaurantMedia(file: File, type: 'cover' | 'gallery
   });
   return data.url;
 }
+
+export async function uploadMenuImage(file: File): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await apiClient.post<{ url: string }>('/menu/image', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data.url;
+}

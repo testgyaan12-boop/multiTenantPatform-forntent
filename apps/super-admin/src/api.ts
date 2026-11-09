@@ -390,6 +390,19 @@ export const platformApi = {
   removeUserRole: (userId: number, roleCode: string) =>
     apiClient.delete(`/superadmin/users/${userId}/roles/${encodeURIComponent(roleCode)}`),
 
+  updateUser: (id: number, payload: { firstName: string; lastName: string; email: string; phone?: string | null; status: string }) =>
+    apiClient.put<UserView>(`/superadmin/users/${id}`, payload).then((r) => r.data),
+  lockUser: (id: number) =>
+    apiClient.post<UserView>(`/superadmin/users/${id}/lock`).then((r) => r.data),
+  unlockUser: (id: number) =>
+    apiClient.post<UserView>(`/superadmin/users/${id}/unlock`).then((r) => r.data),
+  resetPassword: (id: number) =>
+    apiClient.post<{ user: UserView; temporaryPassword: string }>(`/superadmin/users/${id}/reset-password`).then((r) => r.data),
+  changeUserRoles: (id: number, roleCodes: string[]) =>
+    apiClient.put<UserView>(`/superadmin/users/${id}/roles`, { roleCodes }).then((r) => r.data),
+  deleteUser: (id: number) =>
+    apiClient.delete(`/superadmin/users/${id}`).then(() => undefined),
+
   branches: (query: Record<string, unknown> = {}) =>
     apiClient.get<Paged<BranchView>>('/superadmin/branches', { params: pageQuery(query) }).then((r) => r.data),
   updateBranchStatus: (id: number, status: string) =>

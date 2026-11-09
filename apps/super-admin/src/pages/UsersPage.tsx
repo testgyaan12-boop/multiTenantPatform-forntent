@@ -15,6 +15,7 @@ import {
   DialogTitle,
   Divider,
   Drawer,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   Menu,
@@ -63,6 +64,7 @@ import {
 import { ConfirmDialog, EmptyState, ErrorState, PageHeader } from '@resto/ui';
 import type { TenantSummary } from '@resto/types';
 import { platformApi, tenantApi, type RoleView, type UserView } from '@/api';
+import { useAuth } from '@/auth/AuthContext';
 import { useToast } from '@/components/toast';
 import { KpiCard } from '@/components/KpiCard';
 
@@ -217,20 +219,6 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function PendingApiItem({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
-  return (
-    <MenuItem disabled onClick={onClick}>
-      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ width: '100%' }}>
-        {icon}
-        <Typography variant="body2" sx={{ flex: 1 }}>
-          {label}
-        </Typography>
-        <Chip size="small" label="API pending" sx={{ height: 18, fontSize: 10, bgcolor: '#F1F5F9' }} />
-      </Stack>
-    </MenuItem>
-  );
-}
-
 type PendingAction =
   | { kind: 'activate'; user: UserView }
   | { kind: 'suspend'; user: UserView }
@@ -241,6 +229,10 @@ type PendingAction =
 export function UsersPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user: authUser } = useAuth();
+  const myPermissions = new Set((authUser?.permissions ?? []) as string[]);
+
+  const can = (code: string) => myPermissions.has(code);
 
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(25);
@@ -264,6 +256,26 @@ export function UsersPage() {
   const [invite, setInvite] = useState<{ token: string; email: string; expiresAt: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [dateAnchor, setDateAnchor] = useState<HTMLElement | null>(null);
+
+  // User action dialog state
+  const [editUser, setEditUser] = useState<UserView | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTab, setEditTab] = useState<'details' | 'roles'>('details');
+  const [editDetails, setEditDetails] = useState<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+    status: string;
+  }>({ firstName: '', lastName: '', email: '', phone: null, status: 'ACTIVE' });
+  const [selectedRoleCodes, setSelectedRoleCodes] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'lock' | 'unlock' | 'reset-password' | 'delete' | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<UserView | null>(null);
+  const confirmTargetEmail = confirmTarget?.email;
+  const targetLabel = confirmTarget ? fullName(confirmTarget) : (confirmTargetEmail ?? 'this user');
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetTempPassword, setResetTempPassword] = useState('');
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -384,6 +396,127 @@ export function UsersPage() {
       setPending(null);
     },
   });
+
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: { firstName: string; lastName: string; email: string; phone?: string | null; status: string } }) =>
+      platformApi.updateUser(id, payload),
+    onSuccess: () => {
+      toast('User updated');
+      setEditOpen(false);
+      setMenu(null);
+      invalidate();
+    },
+    onError: (error: Error) => {
+      toast(error.message, 'error');
+    },
+  });
+
+  const lockUserMutation = useMutation({
+    mutationFn: (id: number) => platformApi.lockUser(id),
+    onSuccess: () => {
+      toast('User account locked');
+      setConfirmOpen(false);
+      invalidate();
+    },
+    onError: (error: Error) => {
+      toast(error.message, 'error');
+      setConfirmOpen(false);
+    },
+  });
+
+  const unlockUserMutation = useMutation({
+    mutationFn: (id: number) => platformApi.unlockUser(id),
+    onSuccess: () => {
+      toast('User account unlocked');
+      setConfirmOpen(false);
+      invalidate();
+    },
+    onError: (error: Error) => {
+      toast(error.message, 'error');
+      setConfirmOpen(false);
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: (id: number) => platformApi.resetPassword(id),
+    onSuccess: (result) => {
+      setConfirmOpen(false);
+      setResetTempPassword(result.temporaryPassword);
+      setResetOpen(true);
+    },
+    onError: (error: Error) => {
+      toast(error.message, 'error');
+      setConfirmOpen(false);
+    },
+  });
+
+  const changeUserRolesMutation = useMutation({
+    mutationFn: ({ id, roleCodes }: { id: number; roleCodes: string[] }) =>
+      platformApi.changeUserRoles(id, roleCodes),
+    onSuccess: () => {
+      toast('User roles updated');
+      setEditOpen(false);
+      invalidate();
+    },
+    onError: (error: Error) => {
+      toast(error.message, 'error');
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: number) => platformApi.deleteUser(id),
+    onSuccess: () => {
+      setConfirmOpen(false);
+      setSelectedIds([]);
+      setMenu(null);
+      invalidate();
+    },
+    onError: (error: Error) => {
+      toast(error.message, 'error');
+      setConfirmOpen(false);
+    },
+  });
+
+  const handleConfirm = () => {
+    if (!confirmTarget) return;
+    if (confirmAction === 'lock') {
+      setConfirmOpen(false);
+      lockUserMutation.mutate(confirmTarget.id);
+    } else if (confirmAction === 'unlock') {
+      setConfirmOpen(false);
+      unlockUserMutation.mutate(confirmTarget.id);
+    } else if (confirmAction === 'reset-password') {
+      setConfirmOpen(false);
+      resetPasswordMutation.mutate(confirmTarget.id);
+    } else if (confirmAction === 'delete') {
+      setConfirmOpen(false);
+      deleteUserMutation.mutate(confirmTarget.id);
+    }
+    setConfirmAction(null);
+    setConfirmTarget(null);
+  };
+
+  const openEdit = (user: UserView) => {
+    setEditUser(user);
+    setEditTab('details');
+    setEditDetails({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone ?? null,
+      status: user.status,
+    });
+    setEditOpen(true);
+    setMenu(null);
+  };
+
+  const openChangeRoles = (user: UserView) => {
+    setEditUser(user);
+    setEditTab('roles');
+    setSelectedRoleCodes(new Set(user.roles));
+    setEditOpen(true);
+    setMenu(null);
+  };
 
   const tenantList = tenants.data?.content ?? [];
   const tenantById = useMemo(() => {
@@ -1139,12 +1272,258 @@ export function UsersPage() {
           </Stack>
         </MenuItem>
         <Divider />
-        <PendingApiItem icon={<Pencil size={16} />} label="Edit user" onClick={() => undefined} />
-        <PendingApiItem icon={<LockOpen size={16} />} label="Lock / unlock account" onClick={() => undefined} />
-        <PendingApiItem icon={<KeyRound size={16} />} label="Reset password" onClick={() => undefined} />
-        <PendingApiItem icon={<ShieldCheck size={16} />} label="Change role" onClick={() => undefined} />
-        <PendingApiItem icon={<Trash2 size={16} />} label="Delete user" onClick={() => undefined} />
+        {can('user.update') && (
+          <MenuItem
+            onClick={() => {
+              if (menu) openEdit(menu.user);
+            }}
+          >
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <Pencil size={16} />
+              <Typography variant="body2">Edit user</Typography>
+            </Stack>
+          </MenuItem>
+        )}
+        {can('user.lock') && (
+          <MenuItem
+            onClick={() => {
+              if (!menu) return;
+              setConfirmAction(menu.user.status === 'ACTIVE' ? 'lock' : 'unlock');
+              setConfirmTarget(menu.user);
+              setConfirmOpen(true);
+              setMenu(null);
+            }}
+            sx={{ color: menu?.user.status === 'ACTIVE' ? '#B91C1C' : '#15803D' }}
+          >
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              {menu?.user.status === 'ACTIVE' ? <Lock size={16} /> : <LockOpen size={16} />}
+              <Typography variant="body2">
+                {menu?.user.status === 'ACTIVE' ? 'Lock account' : 'Unlock account'}
+              </Typography>
+            </Stack>
+          </MenuItem>
+        )}
+        {can('user.reset-password') && (
+          <MenuItem
+            onClick={() => {
+              if (!menu) return;
+              setConfirmAction('reset-password');
+              setConfirmTarget(menu.user);
+              setConfirmOpen(true);
+              setMenu(null);
+            }}
+          >
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <KeyRound size={16} />
+              <Typography variant="body2">Reset password</Typography>
+            </Stack>
+          </MenuItem>
+        )}
+        {can('user.assign-role') && (
+          <MenuItem
+            onClick={() => {
+              if (menu) openChangeRoles(menu.user);
+            }}
+          >
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <ShieldCheck size={16} />
+              <Typography variant="body2">Change role</Typography>
+            </Stack>
+          </MenuItem>
+        )}
+        {can('user.delete') && (
+          <MenuItem
+            onClick={() => {
+              if (!menu) return;
+              setConfirmAction('delete');
+              setConfirmTarget(menu.user);
+              setConfirmOpen(true);
+              setMenu(null);
+            }}
+            sx={{ color: '#B91C1C' }}
+          >
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <Trash2 size={16} />
+              <Typography variant="body2">Delete user</Typography>
+            </Stack>
+          </MenuItem>
+        )}
       </Menu>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={
+          confirmAction === 'lock'
+            ? 'Lock account?'
+            : confirmAction === 'unlock'
+              ? 'Unlock account?'
+              : confirmAction === 'reset-password'
+                ? 'Reset password?'
+                : 'Delete user?'
+        }
+        description={
+          confirmAction === 'lock'
+            ? `Lock the account of "${targetLabel}"? The user will not be able to sign in.`
+            : confirmAction === 'unlock'
+              ? `Unlock the account of "${targetLabel}"? The user can sign in again.`
+              : confirmAction === 'reset-password'
+                ? `Reset the password of "${targetLabel}"? A temporary password will be generated and shown to you.`
+                : `Permanently remove "${targetLabel}"? This soft-deletes the account and its data is retained.`
+        }
+        confirmLabel={
+          confirmAction === 'lock'
+            ? 'Lock account'
+            : confirmAction === 'unlock'
+              ? 'Unlock account'
+              : confirmAction === 'reset-password'
+                ? 'Reset password'
+                : 'Delete user'
+        }
+        cancelLabel="Cancel"
+        destructive={confirmAction === 'delete'}
+        loading={
+          lockUserMutation.isPending ||
+          unlockUserMutation.isPending ||
+          resetPasswordMutation.isPending ||
+          deleteUserMutation.isPending
+        }
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={handleConfirm}
+      />
+
+      {editOpen && editUser && (
+        <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle>
+            {editTab === 'roles' ? 'Change roles' : 'Edit user'}
+          </DialogTitle>
+          <DialogContent sx={{ pt: 1, pb: 1, display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 600, overflowY: 'auto' }}>
+            {editTab === 'details' ? (
+              <Box>
+                <TextField
+                  fullWidth
+                  label="First name"
+                  value={editDetails.firstName}
+                  onChange={(e) => setEditDetails((d) => ({ ...d, firstName: e.target.value }))}
+                  autoFocus
+                />
+                <TextField
+                  fullWidth
+                  label="Last name"
+                  value={editDetails.lastName}
+                  onChange={(e) => setEditDetails((d) => ({ ...d, lastName: e.target.value }))}
+                />
+                <TextField
+                  fullWidth
+                  label="Email"
+                  value={editDetails.email}
+                  onChange={(e) => setEditDetails((d) => ({ ...d, email: e.target.value }))}
+                />
+                <TextField
+                  fullWidth
+                  label="Phone"
+                  value={editDetails.phone ?? ''}
+                  onChange={(e) => setEditDetails((d) => ({ ...d, phone: e.target.value || null }))}
+                />
+                <TextField
+                  fullWidth
+                  select
+                  label="Status"
+                  value={editDetails.status}
+                  onChange={(e) => setEditDetails((d) => ({ ...d, status: e.target.value }))}
+                >
+                  <MenuItem value="ACTIVE">Active</MenuItem>
+                  <MenuItem value="LOCKED">Locked</MenuItem>
+                  <MenuItem value="SUSPENDED">Suspended</MenuItem>
+                  <MenuItem value="PENDING">Pending</MenuItem>
+                </TextField>
+              </Box>
+            ) : (
+              <Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Select roles to assign to <strong>{fullName(editUser)}</strong>.
+                </Typography>
+                {roleOptions.map((code) => (
+                  <FormControlLabel
+                    key={code}
+                    control={
+                      <Checkbox
+                        checked={selectedRoleCodes.has(code)}
+                        onChange={() => {
+                          const next = new Set(selectedRoleCodes);
+                          if (next.has(code)) next.delete(code);
+                          else next.add(code);
+                          setSelectedRoleCodes(next);
+                        }}
+                      />
+                    }
+                    label={code}
+                  />
+                ))}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (editTab === 'details') {
+                  updateUserMutation.mutate({
+                    id: editUser.id,
+                    payload: {
+                      firstName: editDetails.firstName,
+                      lastName: editDetails.lastName,
+                      email: editDetails.email,
+                      phone: editDetails.phone,
+                      status: editDetails.status,
+                    },
+                  });
+                } else {
+                  changeUserRolesMutation.mutate({
+                    id: editUser.id,
+                    roleCodes: Array.from(selectedRoleCodes),
+                  });
+                }
+                setEditOpen(false);
+              }}
+              variant="contained"
+              disabled={updateUserMutation.isPending || changeUserRolesMutation.isPending}
+            >
+              {editTab === 'details' ? 'Save changes' : 'Update roles'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {resetOpen && (
+        <Dialog open={resetOpen} onClose={() => setResetOpen(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>Temporary password</DialogTitle>
+          <DialogContent sx={{ pt: 1, pb: 1 }}>
+            <Typography variant="body2">
+              A temporary password has been generated for{' '}
+              <strong>{targetLabel}</strong>. Share it with the user and ask them to change it on first sign-in.
+            </Typography>
+            <TextField
+              fullWidth
+              label="Temporary password"
+              value={resetTempPassword}
+              sx={{ mt: 1 }}
+              InputProps={{
+                readOnly: true,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <IconButton onClick={() => navigator.clipboard?.writeText(resetTempPassword)} size="small">
+                      <Copy size={16} />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setResetOpen(false)}>Done</Button>
+          </DialogActions>
+        </Dialog>
+      )}
 
       <Drawer
         anchor="right"

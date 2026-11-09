@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -13,7 +13,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Image as ImageIcon, Trash2, X } from 'lucide-react';
+import { Image as ImageIcon, Plus, Trash2, X } from 'lucide-react';
+import { uploadMenuImage } from '@/api';
 import { menuItemSchema } from '@resto/validation';
 import type {
   MenuCategory,
@@ -94,6 +95,10 @@ export function MenuItemDrawer({
   const [apiError, setApiError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -470,13 +475,13 @@ export function MenuItemDrawer({
                 <Box sx={{ textAlign: 'center', display: 'grid', gap: 0.5, justifyItems: 'center' }}>
                   <ImageIcon size={26} strokeWidth={1.5} />
                   <Typography sx={{ fontSize: 12 }}>
-                    {form.imageUrl && !imageFailed ? 'Image preview' : 'No image yet'}
+                    {form.imageUrl || imagePreview ? 'Image preview' : 'No image yet'}
                   </Typography>
                 </Box>
-                {form.imageUrl && !imageFailed ? (
+                {(form.imageUrl || imagePreview) && !imageFailed ? (
                   <Box
                     component="img"
-                    src={form.imageUrl}
+                    src={imagePreview ?? form.imageUrl}
                     alt="Menu item preview"
                     onError={() => setImageFailed(true)}
                     sx={{
@@ -489,35 +494,83 @@ export function MenuItemDrawer({
                   />
                 ) : null}
               </Box>
-              <TextField
-                label="Image URL"
-                value={form.imageUrl}
-                onChange={(event) => {
-                  set('imageUrl', event.target.value);
-                  setImageFailed(false);
-                }}
-                error={Boolean(fieldErrors.imageUrl)}
-                helperText={
-                  fieldErrors.imageUrl ??
-                  'Paste a direct link to the dish photo (http:// or https://)'
-                }
-                fullWidth
-                inputProps={{ maxLength: 500 }}
-              />
-              {form.imageUrl ? (
+              <Box sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' } }}>
+                <input
+                  ref={fileInputRef}
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  type="file"
+                  hidden
+                  onChange={async (event) => {
+                    const file = event.target?.files?.[0];
+                    if (!file) return;
+                    setSelectedFileName(file.name);
+                    setUploadingImage(true);
+                    setImageFailed(false);
+                    if (imagePreview) URL.revokeObjectURL(imagePreview);
+                    const preview = URL.createObjectURL(file);
+                    setImagePreview(preview);
+                    set('imageUrl', preview);
+                    try {
+                      const url = await uploadMenuImage(file);
+                      set('imageUrl', url);
+                      URL.revokeObjectURL(preview);
+                      setImagePreview(null);
+                      setSelectedFileName(null);
+                      event.target.value = '';
+                    } catch (error: any) {
+                      setImageFailed(true);
+                      set('imageUrl', '');
+                      URL.revokeObjectURL(preview);
+                      setImagePreview(null);
+                      setSelectedFileName(null);
+                      setApiError(error?.message ?? 'Image upload failed');
+                    } finally {
+                      setUploadingImage(false);
+                    }
+                  }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => void fileInputRef.current?.click()}
+                    sx={{
+                      border: '1px dashed #C9D2E3',
+                      borderRadius: 1,
+                      bgcolor: uploadingImage ? '#EEF1F5' : '#FFFFFF',
+                      color: '#5A6478',
+                      padding: 1,
+                      textAlign: 'center',
+                      fontSize: 12.5,
+                      '&:hover': { borderColor: '#FF4D1C' },
+                    }}
+                    startIcon={<Plus size={14} />}
+                  >
+                    {uploadingImage ? 'Uploading...' : 'Upload photo'}
+                  </Button>
+                  {selectedFileName && (
+                    <Typography variant="caption" color="text.secondary" sx={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {selectedFileName}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+              {(form.imageUrl || imagePreview) && (
                 <Button
                   size="small"
                   color="inherit"
                   startIcon={<Trash2 size={14} />}
                   onClick={() => {
+                    if (imagePreview) URL.revokeObjectURL(imagePreview);
                     set('imageUrl', '');
+                    setImagePreview(null);
                     setImageFailed(false);
                   }}
                   sx={{ justifySelf: 'start', color: 'text.secondary', fontSize: 13 }}
                 >
                   Remove image
                 </Button>
-              ) : null}
+              )}
             </Box>
           </Section>
 
