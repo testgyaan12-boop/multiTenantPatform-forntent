@@ -15,6 +15,7 @@ import { ReportsPage } from '@/pages/ReportsPage';
 import { RestaurantProfilePage } from '@/pages/RestaurantProfilePage';
 import { SignupPage } from '@/pages/SignupPage';
 import { TablesPage } from '@/pages/TablesPage';
+import { RequirePermission } from '@/auth/RequirePermission';
 
 export function App() {
   return (
@@ -32,15 +33,15 @@ export function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<DashboardPage />} />
-          <Route path="orders" element={<OrdersPage />} />
-          <Route path="menu" element={<MenuPage />} />
-          <Route path="inquiries" element={<InquiriesPage />} />
-          <Route path="tables" element={<TablesPage />} />
-          <Route path="employees" element={<EmployeesPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-            <Route path="branches" element={<BranchesPage />} />
-            <Route path="profile" element={<RestaurantProfilePage />} />
+          <Route index element={<RequirePermission code="dashboard.read"><DashboardPage /></RequirePermission>} />
+          <Route path="orders" element={<RequirePermission code="order.read"><OrdersPage /></RequirePermission>} />
+          <Route path="menu" element={<RequirePermission code="menu.read"><MenuPage /></RequirePermission>} />
+          <Route path="inquiries" element={<RequirePermission code="inquiry.read"><InquiriesPage /></RequirePermission>} />
+          <Route path="tables" element={<RequirePermission code="table.read"><TablesPage /></RequirePermission>} />
+          <Route path="employees" element={<RequirePermission code="employee.read"><EmployeesPage /></RequirePermission>} />
+          <Route path="reports" element={<RequirePermission code="report.read"><ReportsPage /></RequirePermission>} />
+          <Route path="branches" element={<RequirePermission code="branch.read"><BranchesPage /></RequirePermission>} />
+          <Route path="profile" element={<RestaurantProfilePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

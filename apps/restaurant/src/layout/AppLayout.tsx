@@ -39,10 +39,12 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
+import { useCan } from '@/auth/useCan';
 import { ConfirmDialog } from '@resto/ui';
 import { useRestaurant } from '@/context/RestaurantContext';
 import { openOrdersCount, useLiveOrders } from '@/hooks/useDashboardData';
 import { HeaderFiltersProvider, useHeaderFilters } from './HeaderFilters';
+import { accessFor } from './navAccess';
 
 const SIDEBAR_WIDTH = 256;
 const SIDEBAR_COLLAPSED = 76;
@@ -107,7 +109,11 @@ function SidebarContent({
   onNavigate?: () => void;
 }) {
   const { profile, branches, activeBranchId, setActiveBranchId } = useRestaurant();
-  const navItems = navItemsFor(profile?.businessType);
+  const { can } = useCan();
+  const navItems = navItemsFor(profile?.businessType).filter((item) => {
+    const access = accessFor(item.to);
+    return !access || can(access.read);
+  });
   const liveOrders = useLiveOrders();
   const pendingBadge = liveOrders.data ? openOrdersCount(liveOrders.data.content) : 0;
 

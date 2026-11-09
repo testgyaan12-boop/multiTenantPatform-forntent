@@ -42,12 +42,14 @@ import {
   Copy,
   FileText,
   Lock,
+  Layout,
   Menu as MenuIcon,
   Plus,
   Pencil,
   RefreshCw,
   Save,
   ShieldCheck,
+  Table2,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -81,8 +83,8 @@ const GROUPS: GroupDef[] = [
     label: 'Dashboard',
     icon: Activity,
     domain: 'Platform',
-    description: 'Platform dashboards and analytics',
-    codes: ['dashboard.read', 'dashboard.analytics'],
+    description: 'View dashboard overview',
+    codes: ['dashboard.read'],
   },
   {
     key: 'tenant',
@@ -90,7 +92,7 @@ const GROUPS: GroupDef[] = [
     icon: MenuIcon,
     domain: 'Platform',
     description: 'Tenants, domains and onboarding',
-    codes: ['tenant.read', 'tenant.create', 'tenant.update', 'tenant.delete', 'tenant.suspend', 'tenant.activate'],
+    codes: ['tenant.read', 'tenant.create', 'tenant.update', 'tenant.suspend', 'tenant.activate', 'tenant.delete'],
   },
   {
     key: 'branch',
@@ -98,7 +100,7 @@ const GROUPS: GroupDef[] = [
     icon: ChevronRight,
     domain: 'Restaurant',
     description: 'Branches, locations and operating status',
-    codes: ['branch.read', 'branch.create', 'branch.update', 'branch.delete', 'branch.activate', 'branch.deactivate'],
+    codes: ['branch.read', 'branch.manage'],
   },
   {
     key: 'user',
@@ -114,7 +116,7 @@ const GROUPS: GroupDef[] = [
     icon: MenuIcon,
     domain: 'Restaurant',
     description: 'Categories, items and attributes',
-    codes: ['menu.read', 'menu.create', 'menu.update', 'menu.delete'],
+    codes: ['menu.read', 'menu.manage'],
   },
   {
     key: 'order',
@@ -122,15 +124,31 @@ const GROUPS: GroupDef[] = [
     icon: FileText,
     domain: 'Restaurant',
     description: 'Orders, tables and kitchen',
-    codes: ['order.read', 'order.create', 'order.update', 'order.cancel', 'order.manage'],
+    codes: ['order.read', 'order.manage', 'order.cancel'],
   },
   {
-    key: 'subscription',
-    label: 'Subscription Management',
-    icon: Lock,
-    domain: 'Platform',
-    description: 'Plans, subscriptions and invoices',
-    codes: ['subscription.read', 'subscription.create', 'subscription.update', 'subscription.cancel'],
+    key: 'inquiry',
+    label: 'Enquiries (Restaurant)',
+    icon: FileText,
+    domain: 'Restaurant',
+    description: 'Storefront enquiries and leads',
+    codes: ['inquiry.read', 'inquiry.manage'],
+  },
+  {
+    key: 'table',
+    label: 'Tables & QR (Restaurant)',
+    icon: Table2,
+    domain: 'Restaurant',
+    description: 'Tables and QR codes',
+    codes: ['table.read', 'table.manage'],
+  },
+  {
+    key: 'employee',
+    label: 'Employees (Restaurant)',
+    icon: Users,
+    domain: 'Restaurant',
+    description: 'Staff and assigned tasks',
+    codes: ['employee.read', 'employee.manage'],
   },
   {
     key: 'reports',
@@ -138,23 +156,15 @@ const GROUPS: GroupDef[] = [
     icon: FileText,
     domain: 'Platform',
     description: 'Sales, customers and exports',
-    codes: ['report.read', 'report.export', 'analytics.read'],
+    codes: ['report.read'],
   },
   {
     key: 'financial',
-    label: 'Financial Management',
+    label: 'Payments & Refunds',
     icon: Activity,
     domain: 'Platform',
-    description: 'Payments and invoices',
-    codes: ['payment.read', 'payment.manage', 'invoice.read', 'invoice.manage'],
-  },
-  {
-    key: 'settings',
-    label: 'Settings',
-    icon: ShieldCheck,
-    domain: 'Platform',
-    description: 'Platform settings and feature flags',
-    codes: ['settings.read', 'settings.update'],
+    description: 'View payments and issue refunds',
+    codes: ['payment.read', 'payment.refund'],
   },
 ] as const;
 
@@ -175,7 +185,6 @@ function domainOf(code: string): string {
     analytics: 'Platform',
     payment: 'Platform',
     invoice: 'Platform',
-    settings: 'Platform',
   };
   const prefix = code.split('.')[0] ?? '';
   return map[prefix] ?? 'Platform';
@@ -185,6 +194,179 @@ function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
   for (const v of a) if (!b.has(v)) return false;
   return true;
+}
+
+const TABS: {
+  key: string;
+  label: string;
+  route: string;
+  read: string;
+  write?: string;
+  domain: string;
+}[] = [
+  { key: 'dashboard', label: 'Dashboard', route: '/', read: 'dashboard.read', domain: 'Platform' },
+  { key: 'orders', label: 'Orders', route: '/orders', read: 'order.read', write: 'order.manage', domain: 'Restaurant' },
+  { key: 'menu', label: 'Menu', route: '/menu', read: 'menu.read', write: 'menu.manage', domain: 'Restaurant' },
+  { key: 'inquiries', label: 'Enquiries', route: '/inquiries', read: 'inquiry.read', write: 'inquiry.manage', domain: 'Restaurant' },
+  { key: 'tables', label: 'Tables & QR', route: '/tables', read: 'table.read', write: 'table.manage', domain: 'Restaurant' },
+  { key: 'employees', label: 'Employees', route: '/employees', read: 'employee.read', write: 'employee.manage', domain: 'Restaurant' },
+  { key: 'reports', label: 'Reports', route: '/reports', read: 'report.read', domain: 'Platform' },
+  { key: 'branches', label: 'Branches', route: '/branches', read: 'branch.read', write: 'branch.manage', domain: 'Restaurant' },
+];
+
+function tabLevel(tab: (typeof TABS)[number], permByCode: Map<string, number>, selected: Set<number>): 'hidden' | 'read' | 'readwrite' {
+  const readId = tab.read ? permByCode.get(tab.read) : undefined;
+  const writeId = tab.write ? permByCode.get(tab.write) : undefined;
+  const hasRead = readId ? selected.has(readId) : true;
+  const hasWrite = writeId ? selected.has(writeId) : true;
+  return hasRead ? (hasWrite ? 'readwrite' : 'read') : 'hidden';
+}
+
+function TabAccessMatrix({
+  permissions,
+  selected,
+  onChange,
+  roleCode,
+}: {
+  permissions: PermissionView[];
+  selected: Set<number>;
+  onChange: (ids: Set<number>) => void;
+  roleCode: string;
+}) {
+  const { toast } = useToast();
+  const permByCode = useMemo(() => new Map(permissions.map((p) => [p.code, p.id])), [permissions]);
+  const [levels, setLevels] = useState<Map<string, 'hidden' | 'read' | 'readwrite'>>(new Map());
+
+  useEffect(() => {
+    const next = new Map<string, 'hidden' | 'read' | 'readwrite'>();
+    for (const tab of TABS) next.set(tab.key, tabLevel(tab, permByCode, selected));
+    setLevels(next);
+  }, [selected, permByCode]);
+
+  const applyLevel = (key: string, level: 'hidden' | 'read' | 'readwrite') => {
+    const tab = TABS.find((t) => t.key === key);
+    if (!tab) return;
+    const readId = tab.read ? permByCode.get(tab.read) : undefined;
+    const writeId = tab.write ? permByCode.get(tab.write) : undefined;
+    const next = new Set(selected);
+    if (level === 'hidden') {
+      if (readId) next.delete(readId);
+      if (writeId) next.delete(writeId);
+    } else if (level === 'read') {
+      if (readId) next.add(readId);
+      if (writeId) next.delete(writeId);
+    } else {
+      if (readId) next.add(readId);
+      if (writeId) next.add(writeId);
+    }
+    const nextLevels = new Map(levels);
+    nextLevels.set(key, level);
+    const isSuperAdmin = roleCode === 'SUPER_ADMIN';
+    const remainingVisible = TABS.filter((t) => {
+      const lv = nextLevels.get(t.key);
+      return lv !== 'hidden';
+    }).length;
+    if (isSuperAdmin && remainingVisible === 0) {
+      toast('SUPER_ADMIN must retain at least one visible tab', 'error');
+      return;
+    }
+    setLevels(nextLevels);
+    onChange(next);
+  };
+
+  const superAdmin = roleCode === 'SUPER_ADMIN';
+
+  if (permissions.length === 0) {
+    return (
+      <Card sx={{ border: '1px solid #E4E9F2', borderRadius: 1, overflow: 'hidden' }}>
+        <CardContent sx={{ p: 2, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            Loading permissions…
+          </Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card sx={{ border: '1px solid #E4E9F2', borderRadius: 1, overflow: 'hidden' }}>
+      <CardContent sx={{ p: 1.5 }}>
+        <Typography variant="body2" fontWeight={700} sx={{ mb: 1.5 }}>
+          Tab access per role
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5 }}>
+          Choose what each role sees in the restaurant sidebar and whether it can read or read+write.
+        </Typography>
+        {superAdmin && (
+          <Alert severity="info" sx={{ mb: 1.5 }}>
+            Changes to <b>SUPER_ADMIN</b> apply platform-wide and the role must keep at least one visible tab.
+          </Alert>
+        )}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {TABS.map((tab) => {
+            const level = levels.get(tab.key) ?? tabLevel(tab, permByCode, selected);
+            const readId = tab.read ? permByCode.get(tab.read) : undefined;
+            const canRead = !!readId;
+            const canWrite = !!tab.write && !!permByCode.get(tab.write);
+            return (
+              <Card key={tab.key} sx={{ border: '1px solid #E4E9F2', borderRadius: 1, p: 1, overflow: 'hidden', mb: 0.5 }}>
+                <CardContent sx={{ p: 1 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
+                    <Box sx={{ minWidth: 150, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" fontWeight={600} sx={{ color: '#111D32' }}>
+                        {tab.label}
+                      </Typography>
+                      <Chip size="small" label={tab.domain} color="default" variant="outlined" sx={{ fontSize: 10 }} />
+                    </Box>
+                    <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'right', pr: 1 }}>
+                        {tab.route}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 0.25, border: `1px solid ${level === 'hidden' ? '#E4E9F2' : '#111D32'}`, borderRadius: 1, p: 0.25, bg: level === 'hidden' ? undefined : '#F5F7FB' }}>
+                      {(['hidden', 'read', 'readwrite'] as const).map((lv) => {
+                        const active = level === lv;
+                        const label = lv === 'hidden' ? 'Hidden' : lv === 'read' ? 'Read' : 'Read+Write';
+                        const enabled = lv !== 'readwrite' || canWrite;
+                        return (
+                          <Button
+                            key={lv}
+                            size="small"
+                            onClick={() => (enabled ? applyLevel(tab.key, lv) : null)}
+                            disabled={!enabled}
+                            sx={{
+                              px: 0.75,
+                              py: 0.4,
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              textTransform: 'none',
+                              borderRadius: 0,
+                              color: active ? '#fff' : '#5A6478',
+                              bg: active ? '#111D32' : 'transparent',
+                              '&:hover': { bg: active ? 'rgba(17,29,50,0.85)' : 'rgba(17,29,50,0.04)' },
+                              opacity: enabled ? 1 : 0.5,
+                              pointerEvents: enabled ? 'auto' : 'none',
+                            }}
+                          >
+                            {label}
+                          </Button>
+                        );
+                      })}
+                    </Box>
+                  </Stack>
+                  {!canRead && (
+                    <Typography variant="caption" color="error" sx={{ mt: 0.5, fontSize: 10.5 }}>
+                      Permission `{tab.read}` not found in catalog — run migrations.
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function RolesPage() {
@@ -201,7 +383,7 @@ export function RolesPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'permissions' | 'users'>('permissions');
+  const [drawerTab, setDrawerTab] = useState<'permissions' | 'users' | 'tab-access'>('permissions');
   const [editingRole, setEditingRole] = useState<RoleView | null>(null);
   const [selectedPerms, setSelectedPerms] = useState<Set<number>>(new Set());
   const [originalPerms, setOriginalPerms] = useState<Set<number>>(new Set());
@@ -647,9 +829,10 @@ export function RolesPage() {
             </Button>
           </Box>
 
-          <Tabs value={drawerTab} onChange={(_, v) => setDrawerTab(v as 'permissions' | 'users')} sx={{ flexShrink: 0, borderBottom: '1px solid #E4E9F2' }}>
-            <Tab icon={<ShieldCheck size={18} />} label="Permissions" />
-            <Tab icon={<Users size={18} />} label="Assigned Users" />
+          <Tabs value={drawerTab} onChange={(_, v) => setDrawerTab(v as 'permissions' | 'users' | 'tab-access')} sx={{ flexShrink: 0, borderBottom: '1px solid #E4E9F2' }}>
+            <Tab value="permissions" icon={<ShieldCheck size={18} />} label="Permissions" />
+            <Tab value="tab-access" icon={<Layout size={18} />} label="Tab Access" />
+            <Tab value="users" icon={<Users size={18} />} label="Assigned Users" />
           </Tabs>
 
           <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
@@ -669,7 +852,17 @@ export function RolesPage() {
                 }}
                 saving={saveRolePerms.isPending}
               />
-            ) : (
+            ) : drawerTab === 'tab-access' ? (
+              <TabAccessMatrix
+                permissions={permissions}
+                selected={selectedPerms}
+                onChange={(ids) => {
+                  setSelectedPerms(ids);
+                  setDirty(true);
+                }}
+                roleCode={editingRole?.code ?? ''}
+              />
+            ) : drawerTab === 'users' ? (
               <AssignedUsersList
                 role={editingRole ?? undefined}
                 users={platformApi.usersInRole}
@@ -679,10 +872,10 @@ export function RolesPage() {
                   setConfirmOpen(true);
                 }}
               />
-            )}
+            ) : null}
           </Box>
 
-          {drawerTab === 'permissions' && (
+          {(drawerTab === 'permissions' || drawerTab === 'tab-access') && (
             <Box sx={{ p: 2, borderTop: '1px solid #E4E9F2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexShrink: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Chip size="small" label={dirty ? 'Unsaved changes' : 'Saved'} color={dirty ? 'warning' : 'default'} />
