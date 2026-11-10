@@ -5,9 +5,10 @@ export interface PageHeaderProps {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  icon?: ReactNode;
 }
 
-export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, icon }: PageHeaderProps) {
   return (
     <Stack
       direction={{ xs: 'column', sm: 'row' }}
@@ -16,16 +17,34 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
       spacing={2}
       sx={{ mb: 3 }}
     >
-      <Box>
-        <Typography variant="h2" component="h1">
-          {title}
-        </Typography>
-        {subtitle ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {subtitle}
-          </Typography>
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+        {icon ? (
+          <Box
+            sx={{
+              width: 44,
+              height: 44,
+              borderRadius: '12px',
+              bgcolor: 'rgba(255,87,34,0.10)',
+              color: 'primary.main',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {icon}
+          </Box>
         ) : null}
-      </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h2" component="h1">
+            {title}
+          </Typography>
+          {subtitle ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              {subtitle}
+            </Typography>
+          ) : null}
+        </Box>
+      </Stack>
       {actions ? <Box>{actions}</Box> : null}
     </Stack>
   );

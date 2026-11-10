@@ -348,6 +348,66 @@ export interface CloudinarySummary {
   lowOrExhausted: CloudinaryAccountView[];
 }
 
+export type StorageFileCategory = 'IMAGE' | 'DOCUMENT' | 'VIDEO' | 'OTHER';
+
+export interface StorageOverview {
+  totalFiles: number;
+  totalBytes: number;
+  monthlyFiles: number;
+  monthlyBytes: number;
+  previousMonthFiles: number;
+  previousMonthBytes: number;
+  allocatedBytes: number;
+  usedPercent: number;
+  totalAccounts: number;
+  activeAccounts: number;
+  exhaustedAccounts: number;
+  creditsUsed: number;
+  creditsLimit: number;
+  creditsRemaining: number;
+  planLabel: string;
+  monthlyCostUsd?: number | null;
+  freeTier: boolean;
+  warningThresholdPercent: number;
+  criticalThresholdPercent: number;
+  provider: string;
+}
+
+export interface StorageGrowthPoint {
+  date: string;
+  bytesAdded: number;
+  bytesTotal: number;
+  files: number;
+}
+
+export interface StorageFileTypeStat {
+  type: StorageFileCategory;
+  count: number;
+  bytes: number;
+  percent: number;
+}
+
+export interface StorageFileView {
+  id: number;
+  tenantId?: number | null;
+  name: string;
+  contentType: string;
+  sizeBytes: number;
+  publicUrl?: string | null;
+  provider?: string | null;
+  category: StorageFileCategory;
+  createdAt?: string | null;
+  status: 'READY' | 'PENDING';
+}
+
+export interface StoragePagedFiles {
+  content: StorageFileView[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
 interface Paged<T> {
   content: T[];
   page: { page: number; size: number; totalElements: number; totalPages: number };
@@ -493,6 +553,49 @@ export const platformApi = {
     apiClient.get<CloudinarySummary>('/superadmin/cloudinary-accounts/summary').then((r) => r.data),
   reorderCloudinaryAccounts: (items: { id: number; priority: number }[]) =>
     apiClient.put(`/superadmin/cloudinary-accounts/reorder`, items).then(() => undefined),
+  setCloudinaryAccountActive: (id: number, active: boolean) =>
+    apiClient
+      .post<CloudinaryAccountView>(`/superadmin/cloudinary-accounts/${id}/active`, { active })
+      .then((r) => r.data),
+
+  storageOverview: (tenantId?: number | null) =>
+    apiClient
+      .get<StorageOverview>('/superadmin/storage/overview', { params: pageQuery({ tenantId }) })
+      .then((r) => r.data),
+  storageGrowth: (params: { tenantId?: number | null; days?: number; from?: string; to?: string }) =>
+    apiClient
+      .get<StorageGrowthPoint[]>('/superadmin/storage/growth', { params: pageQuery(params) })
+      .then((r) => r.data),
+  storageFileTypes: (tenantId?: number | null) =>
+    apiClient
+      .get<StorageFileTypeStat[]>('/superadmin/storage/file-types', { params: pageQuery({ tenantId }) })
+      .then((r) => r.data),
+  storageRecent: (tenantId?: number | null, limit = 8) =>
+    apiClient
+      .get<StorageFileView[]>('/superadmin/storage/recent', { params: pageQuery({ tenantId, limit }) })
+      .then((r) => r.data),
+  storageFiles: (params: {
+    tenantId?: number | null;
+    page?: number;
+    size?: number;
+    search?: string;
+    type?: string;
+  }) =>
+    apiClient
+      .get<StoragePagedFiles>('/superadmin/storage/files', { params: pageQuery(params) })
+      .then((r) => r.data),
+  uploadStorageFile: (file: File, tenantId?: number | null) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (tenantId != null) {
+      form.append('tenantId', String(tenantId));
+    }
+    return apiClient
+      .post<StorageFileView>('/superadmin/storage/upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
 
   flags: () => apiClient.get<FlagView[]>('/superadmin/feature-flags').then((r) => r.data),
   toggleFlag: (key: string, enabled: boolean) =>
