@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -38,6 +39,7 @@ import {
   Store,
   TicketPercent,
   TrendingUp,
+  Upload,
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -89,6 +91,10 @@ export function DashboardPage() {
   });
 
   const stats = useQuery({ queryKey: ['sa-stats'], queryFn: () => platformApi.stats() });
+  const storage = useQuery({
+    queryKey: ['sa-cloudinary-summary'],
+    queryFn: () => platformApi.cloudinarySummary(),
+  });
   const audit = useQuery({
     queryKey: ['sa-audit', 'recent'],
     queryFn: () => platformApi.auditLogs({ page: 0, size: 5 }),
@@ -180,6 +186,13 @@ export function DashboardPage() {
       {all.isPending || stats.isPending ? <LoadingState /> : null}
       {all.isError ? <ErrorState message={all.error.message} onRetry={() => void all.refetch()} /> : null}
       {stats.isError ? <ErrorState message={stats.error.message} onRetry={() => void stats.refetch()} /> : null}
+      {storage.isError ? <ErrorState message={storage.error.message} onRetry={() => void storage.refetch()} /> : null}
+
+      {storage.data && storage.data.exhaustedAccounts > 0 && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {storage.data.exhaustedAccounts} Cloudinary account(s) are exhausted — image uploads will fail. Add a new account on the <strong>Storage / Cloudinary</strong> page.
+        </Alert>
+      )}
 
       {all.data && stats.data ? (
         <Stack spacing={3}>
@@ -271,14 +284,26 @@ export function DashboardPage() {
               tone="success"
               onClick={() => navigate('/revenue')}
             />
-            <KpiCard
-              label="Outstanding invoices"
-              value={"₹" + stats.data.outstandingAmount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-              sub={`${stats.data.invoiceOpen} open`}
-              icon={<Receipt size={18} />}
-              tone="warning"
-              onClick={() => navigate('/invoices')}
-            />
+              <KpiCard
+                label="Outstanding invoices"
+                value={"₹" + stats.data.outstandingAmount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                sub={`${stats.data.invoiceOpen} open`}
+                icon={<Receipt size={18} />}
+                tone="warning"
+                onClick={() => navigate('/invoices')}
+              />
+              <KpiCard
+                label="Storage credits left"
+                value={
+                  storage.data ? storage.data.totalRemainingCredits : '-'
+                }
+                sub={`${storage.data?.activeAccounts ?? 0} active · ${storage.data?.exhaustedAccounts ?? 0} exhausted`}
+                icon={<Upload size={18} />}
+                tone={
+                  storage.data?.exhaustedAccounts ?? 0 > 0 ? 'error' : 'info'
+                }
+                onClick={() => navigate('/storage')}
+              />
           </Box>
 
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">

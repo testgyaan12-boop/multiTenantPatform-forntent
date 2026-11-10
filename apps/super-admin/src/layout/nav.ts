@@ -16,6 +16,7 @@ import {
   Tags,
   TicketPercent,
   TrendingUp,
+  Upload,
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -76,6 +77,7 @@ export const navGroups: NavGroup[] = [
       { to: '/settings', label: 'System Settings', icon: Settings },
       { to: '/feature-flags', label: 'Feature Flags', icon: Flag },
       { to: '/integrations', label: 'Integrations', icon: Puzzle },
+      { to: '/storage', label: 'Storage / Cloudinary', icon: Upload },
       { to: '/help', label: 'Help & Support', icon: LifeBuoy },
     ],
   },

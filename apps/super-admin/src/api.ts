@@ -306,6 +306,48 @@ export interface FlagView {
   planCode: string | null;
 }
 
+export interface CloudinaryAccountView {
+  id: number;
+  label: string;
+  cloudName: string;
+  apiKeyMasked: string;
+  uploadPreset: string | null;
+  folderPrefix: string | null;
+  priority: number;
+  isActive: boolean;
+  monthlyCreditLimit: number;
+  creditsUsed: number;
+  usedPercent: number;
+  localUploadCount: number;
+  localBytesUsed: number;
+  usageCheckedAt: string | null;
+  lastUploadAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+}
+
+export interface CloudinaryAccountRequest {
+  label: string;
+  cloudName: string;
+  apiKey: string;
+  apiSecret: string;
+  uploadPreset?: string | null;
+  folderPrefix?: string | null;
+  priority?: number | null;
+  isActive?: boolean | null;
+  monthlyCreditLimit?: number | null;
+}
+
+export interface CloudinarySummary {
+  totalAccounts: number;
+  activeAccounts: number;
+  exhaustedAccounts: number;
+  totalCreditLimit: number;
+  totalCreditsUsed: number;
+  totalRemainingCredits: number;
+  lowOrExhausted: CloudinaryAccountView[];
+}
+
 interface Paged<T> {
   content: T[];
   page: { page: number; size: number; totalElements: number; totalPages: number };
@@ -432,6 +474,25 @@ export const platformApi = {
   integrations: () => apiClient.get<SettingView[]>('/superadmin/integrations').then((r) => r.data),
   upsertIntegrations: (settings: { key: string; value: string }[]) =>
     apiClient.put<SettingView[]>('/superadmin/integrations', { settings }).then((r) => r.data),
+
+  cloudinaryAccounts: () =>
+    apiClient.get<CloudinaryAccountView[]>('/superadmin/cloudinary-accounts').then((r) => r.data),
+  cloudinaryAccount: (id: number) =>
+    apiClient.get<CloudinaryAccountView>(`/superadmin/cloudinary-accounts/${id}`).then((r) => r.data),
+  createCloudinaryAccount: (payload: CloudinaryAccountRequest) =>
+    apiClient.post<CloudinaryAccountView>('/superadmin/cloudinary-accounts', payload).then((r) => r.data),
+  updateCloudinaryAccount: (id: number, payload: CloudinaryAccountRequest) =>
+    apiClient.put<CloudinaryAccountView>(`/superadmin/cloudinary-accounts/${id}`, payload).then((r) => r.data),
+  deleteCloudinaryAccount: (id: number) =>
+    apiClient.delete(`/superadmin/cloudinary-accounts/${id}`).then(() => undefined),
+  testCloudinaryAccount: (id: number) =>
+    apiClient.post<CloudinaryAccountView>(`/superadmin/cloudinary-accounts/${id}/test`).then((r) => r.data),
+  refreshCloudinaryUsage: (id: number) =>
+    apiClient.post<CloudinaryAccountView>(`/superadmin/cloudinary-accounts/${id}/refresh-usage`).then((r) => r.data),
+  cloudinarySummary: () =>
+    apiClient.get<CloudinarySummary>('/superadmin/cloudinary-accounts/summary').then((r) => r.data),
+  reorderCloudinaryAccounts: (items: { id: number; priority: number }[]) =>
+    apiClient.put(`/superadmin/cloudinary-accounts/reorder`, items).then(() => undefined),
 
   flags: () => apiClient.get<FlagView[]>('/superadmin/feature-flags').then((r) => r.data),
   toggleFlag: (key: string, enabled: boolean) =>

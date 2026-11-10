@@ -20,6 +20,7 @@ import { ReportsPage } from '@/pages/ReportsPage';
 import { RevenuePage } from '@/pages/RevenuePage';
 import { RolesPage } from '@/pages/RolesPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { StoragePage } from '@/pages/StoragePage';
 import { SubscriptionsPage } from '@/pages/SubscriptionsPage';
 import { TenantDetailPage } from '@/pages/TenantDetailPage';
 import { TenantsPage } from '@/pages/TenantsPage';
@@ -54,6 +55,7 @@ export function App() {
             <Route path="audit" element={<AuditPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="storage" element={<StoragePage />} />
             <Route path="feature-flags" element={<FeatureFlagsPage />} />
             <Route path="integrations" element={<IntegrationsPage />} />
             <Route path="help" element={<HelpPage />} />
