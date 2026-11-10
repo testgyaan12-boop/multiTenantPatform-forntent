@@ -31,7 +31,9 @@ import {
   LogOut,
   Menu as MenuIcon,
   MessageSquare,
+  Package,
   Store,
+  ShoppingBag,
   Table2,
   User,
   Users,
@@ -60,17 +62,22 @@ function navItemsFor(businessType: string | undefined): NavItem[] {
   const isRestaurant = (businessType || 'RESTAURANT') === 'RESTAURANT';
   const items: NavItem[] = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/orders', label: 'Orders', icon: ClipboardList, end: false },
-    {
-      to: '/menu',
-      label: isRestaurant ? 'Menu' : 'Products',
-      icon: UtensilsCrossed,
-      end: false,
-    },
-    { to: '/inquiries', label: 'Enquiries', icon: MessageSquare, end: false },
   ];
   if (isRestaurant) {
-    items.splice(4, 0, { to: '/tables', label: 'Tables & QR', icon: Table2, end: false });
+    items.push(
+      { to: '/orders', label: 'Orders', icon: ClipboardList, end: false },
+      { to: '/menu', label: 'Menu', icon: UtensilsCrossed, end: false },
+      { to: '/products', label: 'Product', icon: Package, end: false },
+      { to: '/product-orders', label: 'Product Order', icon: ShoppingBag, end: false },
+      { to: '/inquiries', label: 'Enquiries', icon: MessageSquare, end: false },
+      { to: '/tables', label: 'Tables & QR', icon: Table2, end: false },
+    );
+  } else {
+    items.push(
+      { to: '/products', label: 'Product', icon: Package, end: false },
+      { to: '/product-orders', label: 'Product Order', icon: ShoppingBag, end: false },
+      { to: '/inquiries', label: 'Enquiries', icon: MessageSquare, end: false },
+    );
   }
   items.push(
     { to: '/employees', label: 'Employees', icon: Users, end: false },

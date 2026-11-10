@@ -201,12 +201,19 @@ export interface MenuItem {
   sortOrder: number;
   stockQty?: number | null;
   attributes?: MenuItemAttribute[] | null;
+  images?: MenuItemImage[] | null;
   updatedAt?: string | null;
 }
 
 export interface MenuItemAttribute {
   key: string;
   value: string;
+}
+
+export interface MenuItemImage {
+  url: string;
+  label: string;
+  sortOrder?: number;
 }
 
 export interface MenuItemRequest {
@@ -224,6 +231,7 @@ export interface MenuItemRequest {
   sortOrder?: number;
   stockQty?: number;
   attributes?: MenuItemAttribute[];
+  images?: MenuItemImage[];
 }
 
 export interface DiningTable {

@@ -20,14 +20,17 @@ import type {
   MenuCategory,
   MenuItem as MenuItemModel,
   MenuItemAttribute,
+  MenuItemImage,
   MenuItemRequest,
 } from '@resto/types';
+import { ProductImagesField } from './ProductImagesField';
 
 interface MenuItemDrawerProps {
   open: boolean;
   editing: MenuItemModel | null;
   categories: MenuCategory[];
   currency: string;
+  catalogMode?: 'menu' | 'product';
   onClose: () => void;
   onSubmit: (payload: MenuItemRequest) => Promise<void>;
 }
@@ -46,9 +49,14 @@ interface FormState {
   isFeatured: boolean;
   stockQty: number | '';
   attributes: MenuItemAttribute[];
+  images: MenuItemImage[];
 }
 
-function initialForm(editing: MenuItemModel | null, categories: MenuCategory[]): FormState {
+function initialForm(
+  editing: MenuItemModel | null,
+  categories: MenuCategory[],
+  catalogMode: 'menu' | 'product',
+): FormState {
   if (editing) {
     return {
       name: editing.name,
@@ -64,6 +72,14 @@ function initialForm(editing: MenuItemModel | null, categories: MenuCategory[]):
       isFeatured: editing.isFeatured,
       stockQty: editing.stockQty ?? '',
       attributes: (editing.attributes ?? []).map((attribute) => ({ ...attribute })),
+      images:
+        catalogMode === 'product'
+          ? editing.images?.length
+            ? editing.images.map((image) => ({ ...image }))
+            : editing.imageUrl
+              ? [{ url: editing.imageUrl, label: 'Other' }]
+              : []
+          : [],
     };
   }
   return {
@@ -80,6 +96,7 @@ function initialForm(editing: MenuItemModel | null, categories: MenuCategory[]):
     isFeatured: false,
     stockQty: '',
     attributes: [],
+    images: [],
   };
 }
 
@@ -87,10 +104,11 @@ export function MenuItemDrawer({
   open,
   editing,
   categories,
+  catalogMode = 'menu',
   onClose,
   onSubmit,
 }: MenuItemDrawerProps) {
-  const [form, setForm] = useState<FormState>(() => initialForm(editing, categories));
+  const [form, setForm] = useState<FormState>(() => initialForm(editing, categories, catalogMode));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -102,13 +120,13 @@ export function MenuItemDrawer({
 
   useEffect(() => {
     if (open) {
-      setForm(initialForm(editing, categories));
+      setForm(initialForm(editing, categories, catalogMode));
       setFieldErrors({});
       setApiError(null);
       setSaving(false);
       setImageFailed(false);
     }
-  }, [open, editing, categories]);
+  }, [open, editing, categories, catalogMode]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -149,13 +167,15 @@ export function MenuItemDrawer({
     if (saving) return;
     setApiError(null);
 
+    const coverUrl =
+      catalogMode === 'product' ? (form.images[0]?.url ?? '') : form.imageUrl.trim();
     const parsed = menuItemSchema.safeParse({
       name: form.name,
       description: form.description,
       sku: form.sku,
       price: form.price === '' ? Number.NaN : form.price,
       categoryId: form.categoryId,
-      imageUrl: form.imageUrl.trim(),
+      imageUrl: coverUrl,
     });
     if (!parsed.success) {
       const errors: Record<string, string> = {};
@@ -183,6 +203,15 @@ export function MenuItemDrawer({
       attributes: form.attributes
         .filter((attribute) => attribute.key.trim() && attribute.value.trim())
         .map((attribute) => ({ key: attribute.key.trim(), value: attribute.value.trim() })),
+      ...(catalogMode === 'product'
+        ? {
+            images: form.images.map((image, index) => ({
+              url: image.url,
+              label: image.label.trim() || 'Other',
+              sortOrder: index,
+            })),
+          }
+        : {}),
     };
 
     setSaving(true);
@@ -458,7 +487,14 @@ export function MenuItemDrawer({
 
           <Divider />
 
-          <Section title="Food image">
+          <Section title={catalogMode === 'product' ? 'Product images' : 'Food image'}>
+            {catalogMode === 'product' ? (
+              <ProductImagesField
+                images={form.images}
+                onChange={(images) => set('images', images)}
+                onError={setApiError}
+              />
+            ) : (
             <Box sx={{ display: 'grid', gap: 1.5 }}>
               <Box
                 sx={{
@@ -572,6 +608,7 @@ export function MenuItemDrawer({
                 </Button>
               )}
             </Box>
+            )}
           </Section>
 
           <Divider />

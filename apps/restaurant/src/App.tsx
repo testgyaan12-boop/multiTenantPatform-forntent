@@ -11,6 +11,8 @@ import { InquiriesPage } from '@/pages/InquiriesPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { MenuPage } from '@/pages/MenuPage';
 import { OrdersPage } from '@/pages/OrdersPage';
+import { ProductOrdersPage } from '@/pages/ProductOrdersPage';
+import { ProductPage } from '@/pages/ProductPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { RestaurantProfilePage } from '@/pages/RestaurantProfilePage';
 import { SignupPage } from '@/pages/SignupPage';
@@ -36,6 +38,8 @@ export function App() {
           <Route index element={<RequirePermission code="dashboard.read"><DashboardPage /></RequirePermission>} />
           <Route path="orders" element={<RequirePermission code="order.read"><OrdersPage /></RequirePermission>} />
           <Route path="menu" element={<RequirePermission code="menu.read"><MenuPage /></RequirePermission>} />
+          <Route path="products" element={<RequirePermission code="product.read"><ProductPage /></RequirePermission>} />
+          <Route path="product-orders" element={<RequirePermission code="product_order.read"><ProductOrdersPage /></RequirePermission>} />
           <Route path="inquiries" element={<RequirePermission code="inquiry.read"><InquiriesPage /></RequirePermission>} />
           <Route path="tables" element={<RequirePermission code="table.read"><TablesPage /></RequirePermission>} />
           <Route path="employees" element={<RequirePermission code="employee.read"><EmployeesPage /></RequirePermission>} />

@@ -7,6 +7,8 @@ export const routeAccess: Record<string, RouteAccess> = {
   '/': { read: 'dashboard.read' },
   '/orders': { read: 'order.read', write: 'order.manage' },
   '/menu': { read: 'menu.read', write: 'menu.manage' },
+  '/products': { read: 'product.read', write: 'product.manage' },
+  '/product-orders': { read: 'product_order.read', write: 'product_order.manage' },
   '/inquiries': { read: 'inquiry.read', write: 'inquiry.manage' },
   '/tables': { read: 'table.read', write: 'table.manage' },
   '/employees': { read: 'employee.read', write: 'employee.manage' },

@@ -37,10 +37,24 @@ const CSV_MAX_PAGES = 20;
 const CSV_PAGE_SIZE = 100;
 const NEW_ORDER_HIGHLIGHT_MS = 8_000;
 
-export function OrdersPage() {
+interface OrdersPageProps {
+  title?: string;
+  subtitle?: string;
+  managePermission?: string;
+  csvPrefix?: string;
+  showTablesLink?: boolean;
+}
+
+export function OrdersPage({
+  title = 'Orders',
+  subtitle = 'Live queue for every channel - auto-refreshes every 15 seconds.',
+  managePermission = 'order.manage',
+  csvPrefix = 'orders',
+  showTablesLink = true,
+}: OrdersPageProps = {}) {
   const { activeBranch, activeBranchId } = useRestaurant();
   const { user } = useAuth();
-  const canManage = user?.permissions?.includes('order.manage') ?? false;
+  const canManage = user?.permissions?.includes(managePermission) ?? false;
   const { days, setDays } = useHeaderFilters();
   const queryClient = useQueryClient();
   const advance = useAdvanceOrder();
@@ -212,7 +226,7 @@ export function OrdersPage() {
         if (data.content.length === 0 || collected.length >= data.page.totalElements) break;
       }
       const today = new Date().toISOString().slice(0, 10);
-      downloadCsv(`orders-${today}.csv`, buildOrdersCsv(collected));
+        downloadCsv(`${csvPrefix}-${today}.csv`, buildOrdersCsv(collected));
       setSnack({ open: true, severity: 'success', message: `Exported ${collected.length} orders to CSV.` });
     } catch {
       setSnack({ open: true, severity: 'error', message: 'Failed to export orders.' });
@@ -234,8 +248,8 @@ export function OrdersPage() {
       }}
     >
       <PageHeader
-        title="Orders"
-        subtitle="Live queue for every channel — auto-refreshes every 15 seconds."
+        title={title}
+        subtitle={subtitle}
         actions={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             <Tooltip title="Refresh now">
@@ -257,14 +271,16 @@ export function OrdersPage() {
             >
               {exporting ? 'Exporting…' : 'Export CSV'}
             </Button>
-            <Button
-              variant="outlined"
-              component={RouterLink}
-              to="/tables"
-              startIcon={<QrCode size={15} />}
-            >
-              Tables &amp; QR
-            </Button>
+            {showTablesLink ? (
+              <Button
+                variant="outlined"
+                component={RouterLink}
+                to="/tables"
+                startIcon={<QrCode size={15} />}
+              >
+                Tables &amp; QR
+              </Button>
+            ) : null}
           </Box>
         }
       />

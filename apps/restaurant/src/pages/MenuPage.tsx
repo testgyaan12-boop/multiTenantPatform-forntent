@@ -36,16 +36,24 @@ interface SnackState {
 }
 
 const VIEW_STORAGE_KEY = 'resto.menu-view';
+const PRODUCT_VIEW_STORAGE_KEY = 'resto.product-view';
 
-export function MenuPage() {
+interface MenuPageProps {
+  catalogMode?: 'menu' | 'product';
+}
+
+export function MenuPage({ catalogMode = 'menu' }: MenuPageProps) {
+  const isProduct = catalogMode === 'product';
+  const viewStorageKey = isProduct ? PRODUCT_VIEW_STORAGE_KEY : VIEW_STORAGE_KEY;
   const { profile } = useRestaurant();
   const { user } = useAuth();
-  const canManage = user?.permissions?.includes('menu.manage') ?? false;
+  const canManage =
+    user?.permissions?.includes(isProduct ? 'product.manage' : 'menu.manage') ?? false;
   const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState<MenuFilterState>(defaultFilters);
   const [view, setViewState] = useState<MenuView>(() =>
-    typeof window !== 'undefined' && window.localStorage.getItem(VIEW_STORAGE_KEY) === 'table'
+    typeof window !== 'undefined' && window.localStorage.getItem(viewStorageKey) === 'table'
       ? 'table'
       : 'grid',
   );
@@ -94,7 +102,7 @@ export function MenuPage() {
   const setView = (next: MenuView) => {
     setViewState(next);
     try {
-      window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+      window.localStorage.setItem(viewStorageKey, next);
     } catch {
       // storage unavailable — view preference stays session-only
     }
@@ -118,7 +126,7 @@ export function MenuPage() {
     onSuccess: () => {
       invalidate();
       setDeleteTarget(null);
-      notify('success', 'Item deleted from your menu.');
+      notify('success', isProduct ? 'Product deleted.' : 'Item deleted from your menu.');
     },
     onError: (error: Error) => notify('error', error.message || 'Failed to delete the item.'),
   });
@@ -138,6 +146,7 @@ export function MenuPage() {
         prepTimeMinutes: item.prepTimeMinutes ?? undefined,
         calories: item.calories ?? undefined,
         sortOrder: item.sortOrder,
+        images: item.images?.map((image) => ({ url: image.url, label: image.label })),
       }),
     onSuccess: (_data, item) => {
       invalidate();
@@ -163,10 +172,11 @@ export function MenuPage() {
         isFeatured: false,
         prepTimeMinutes: item.prepTimeMinutes ?? undefined,
         calories: item.calories ?? undefined,
+        images: item.images?.map((image) => ({ url: image.url, label: image.label })),
       }),
     onSuccess: (_data, item) => {
       invalidate();
-      notify('success', `“${item.name}” duplicated.`);
+      notify('success', isProduct ? `${item.name} duplicated.` : `“${item.name}” duplicated.`);
     },
     onError: (error: Error) => notify('error', error.message || 'Failed to duplicate the item.'),
   });
@@ -199,7 +209,16 @@ export function MenuPage() {
     const editing = itemDrawer.editing;
     await saveItem.mutateAsync(editing ? { id: editing.id, payload } : { payload });
     setItemDrawer({ open: false, editing: null });
-    notify('success', editing ? 'Menu item updated.' : 'Menu item added.');
+    notify(
+      'success',
+      editing
+        ? isProduct
+          ? 'Product updated.'
+          : 'Menu item updated.'
+        : isProduct
+          ? 'Product added.'
+          : 'Menu item added.',
+    );
   };
 
   const handleCreateCategory = async (payload: MenuCategoryRequest) => {
@@ -233,8 +252,12 @@ export function MenuPage() {
     <>
       <Box sx={{ display: 'grid', gap: 2, minWidth: 0 }}>
         <PageHeader
-          title="Menu Management"
-          subtitle="Manage dishes, categories, prices and availability across your restaurant."
+          title={isProduct ? 'Product Management' : 'Menu Management'}
+          subtitle={
+            isProduct
+              ? 'Manage products, categories, prices and availability for your store.'
+              : 'Manage dishes, categories, prices and availability across your restaurant.'
+          }
           actions={
             canManage ? (
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -250,7 +273,7 @@ export function MenuPage() {
                   startIcon={<Plus size={16} />}
                   onClick={openAddItem}
                 >
-                  Add Menu Item
+                  {isProduct ? 'Add Product' : 'Add Menu Item'}
                 </Button>
               </Box>
             ) : null
@@ -320,8 +343,12 @@ export function MenuPage() {
 
           {showEmptyState ? (
             <EmptyState
-              title="Your menu is ready to be created."
-              description="Add your first dish to start building your restaurant menu."
+              title={isProduct ? 'Your product catalog is ready.' : 'Your menu is ready to be created.'}
+              description={
+                isProduct
+                  ? 'Add your first product to start building your catalog.'
+                  : 'Add your first dish to start building your restaurant menu.'
+              }
               action={
                 canManage ? (
                   <Button variant="contained" startIcon={<Plus size={16} />} onClick={openAddItem}>
@@ -384,8 +411,10 @@ export function MenuPage() {
         </Card>
 
         <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
-          Your menu is managed at restaurant level and applies to all branches.
-          {canManage ? ' Changes go live for guests as soon as you save them.' : ''}
+          {isProduct
+            ? 'Your product catalog is managed for this business and applies to all branches.'
+            : 'Your menu is managed at restaurant level and applies to all branches.'}
+          {canManage ? ' Changes go live as soon as you save them.' : ''}
         </Typography>
       </Box>
 
@@ -394,6 +423,7 @@ export function MenuPage() {
         editing={itemDrawer.editing}
         categories={categoryList}
         currency={currency}
+        catalogMode={catalogMode}
         onClose={() => setItemDrawer({ open: false, editing: null })}
         onSubmit={handleSaveItem}
       />
@@ -411,9 +441,11 @@ export function MenuPage() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Delete menu item?"
-        description={`"${deleteTarget?.name ?? ''}" will be removed from the menu. This cannot be undone.`}
-        confirmLabel="Delete item"
+        title={isProduct ? 'Delete product?' : 'Delete menu item?'}
+        description={`"${deleteTarget?.name ?? ''}" will be removed from the ${
+          isProduct ? 'catalog' : 'menu'
+        }. This cannot be undone.`}
+        confirmLabel={isProduct ? 'Delete product' : 'Delete item'}
         destructive
         loading={deleteItem.isPending}
         onConfirm={() => {
